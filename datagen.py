@@ -18,7 +18,6 @@ from PIL import Image
 from encoder import DataEncoder
 from transform import resize, random_flip, random_crop, center_crop
 
-
 class ListDataset(data.Dataset):
     def __init__(self, root, list_file, train, transform, input_size):
         '''
@@ -60,7 +59,7 @@ class ListDataset(data.Dataset):
                 label.append(int(c))
             self.boxes.append(torch.Tensor(box))
             self.labels.append(torch.LongTensor(label))
-
+    
     def __getitem__(self, idx):
         '''Load image.
 
@@ -84,7 +83,7 @@ class ListDataset(data.Dataset):
 
         # Data augmentation.
         if self.train:
-            img, boxes = random_flip(img, boxes)
+            # img, boxes = random_flip(img, boxes)
             img, boxes = random_crop(img, boxes)
             img, boxes = resize(img, boxes, (size,size))
         else:

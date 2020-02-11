@@ -39,15 +39,15 @@ transform = transforms.Compose([
 ROOT_PATH = "data/images"
 
 trainset = ListDataset(root=ROOT_PATH,
-                       list_file='./data/voc12_train.txt', train=True, transform=transform, input_size=600)
+                       list_file='./data/custom_train.txt', train=True, transform=transform, input_size=600)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=1, shuffle=False, num_workers=1, collate_fn=trainset.collate_fn)
 
 testset = ListDataset(root=ROOT_PATH,
-                      list_file='./data/voc12_val.txt', train=False, transform=transform, input_size=600)
+                      list_file='./data/custom_test.txt', train=False, transform=transform, input_size=600)
 testloader = torch.utils.data.DataLoader(testset, batch_size=1, shuffle=False, num_workers=1, collate_fn=testset.collate_fn)
 
 # Model
-net = RetinaNet()
+net = RetinaNet(num_classes=1)
 # net.load_state_dict(torch.load('./model/net.pth'))
 if args.resume:
     print('==> Resuming from checkpoint..')
@@ -59,14 +59,13 @@ if args.resume:
 net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
 net.cuda()
 
-criterion = FocalLoss()
+criterion = FocalLoss(num_classes=1)
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
 
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
-    net.module.freeze_bn()
     train_loss = 0
     for batch_idx, (inputs, loc_targets, cls_targets) in enumerate(trainloader):
         inputs = Variable(inputs.cuda())
@@ -78,39 +77,41 @@ def train(epoch):
         loss = criterion(loc_preds, loc_targets, cls_preds, cls_targets)
         loss.backward()
         optimizer.step()
-
-        train_loss += loss.data[0]
-        print('train_loss: %.3f | avg_loss: %.3f' % (loss.data[0], train_loss/(batch_idx+1)))
+        train_loss += loss
+        # print('train_loss: %.3f | avg_loss: %.3f' % (loss, train_loss/(batch_idx+1)))
 
 # Test
+from pytorch_memlab import profile
+@profile
 def test(epoch):
     print('\nTest')
     net.eval()
     test_loss = 0
-    for batch_idx, (inputs, loc_targets, cls_targets) in enumerate(testloader):
-        inputs = Variable(inputs.cuda(), volatile=True)
-        loc_targets = Variable(loc_targets.cuda())
-        cls_targets = Variable(cls_targets.cuda())
+    with torch.no_grad(): # 이거 추가
+        for batch_idx, (inputs, loc_targets, cls_targets) in enumerate(testloader):
+            inputs = Variable(inputs.cuda(), volatile=True)
+            loc_targets = Variable(loc_targets.cuda())
+            cls_targets = Variable(cls_targets.cuda())
 
-        loc_preds, cls_preds = net(inputs)
-        loss = criterion(loc_preds, loc_targets, cls_preds, cls_targets)
-        test_loss += loss.data[0]
-        print('test_loss: %.3f | avg_loss: %.3f' % (loss.data[0], test_loss/(batch_idx+1)))
+            loc_preds, cls_preds = net(inputs)
+            loss = criterion(loc_preds, loc_targets, cls_preds, cls_targets)
+            test_loss += loss
+            print('test_loss: %.3f | avg_loss: %.3f' % (loss, test_loss/(batch_idx+1)))
 
-    # Save checkpoint
-    global best_loss
-    test_loss /= len(testloader)
-    if test_loss < best_loss:
-        print('Saving..')
-        state = {
-            'net': net.module.state_dict(),
-            'loss': test_loss,
-            'epoch': epoch,
-        }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.pth')
-        best_loss = test_loss
+        # Save checkpoint
+        global best_loss
+        test_loss /= len(testloader)
+        if test_loss < best_loss:
+            print('Saving..')
+            state = {
+                'net': net.module.state_dict(),
+                'loss': test_loss,
+                'epoch': epoch,
+            }
+            if not os.path.isdir('checkpoint'):
+                os.mkdir('checkpoint')
+            torch.save(state, './checkpoint/ckpt.pth')
+            best_loss = test_loss
 
 
 for epoch in range(start_epoch, start_epoch+200):
