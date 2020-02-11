@@ -35,17 +35,20 @@ transform = transforms.Compose([
     transforms.Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
 ])
 
-trainset = ListDataset(root='/search/odin/liukuang/data/voc_all_images',
-                       list_file='./data/voc12_train.txt', train=True, transform=transform, input_size=600)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=16, shuffle=True, num_workers=8, collate_fn=trainset.collate_fn)
+# ROOT_PATH = '/search/odin/liukuang/data/voc_all_images'
+ROOT_PATH = "data/images"
 
-testset = ListDataset(root='/search/odin/liukuang/data/voc_all_images',
+trainset = ListDataset(root=ROOT_PATH,
+                       list_file='./data/voc12_train.txt', train=True, transform=transform, input_size=600)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=1, shuffle=False, num_workers=1, collate_fn=trainset.collate_fn)
+
+testset = ListDataset(root=ROOT_PATH,
                       list_file='./data/voc12_val.txt', train=False, transform=transform, input_size=600)
-testloader = torch.utils.data.DataLoader(testset, batch_size=16, shuffle=False, num_workers=8, collate_fn=testset.collate_fn)
+testloader = torch.utils.data.DataLoader(testset, batch_size=1, shuffle=False, num_workers=1, collate_fn=testset.collate_fn)
 
 # Model
 net = RetinaNet()
-net.load_state_dict(torch.load('./model/net.pth'))
+# net.load_state_dict(torch.load('./model/net.pth'))
 if args.resume:
     print('==> Resuming from checkpoint..')
     checkpoint = torch.load('./checkpoint/ckpt.pth')

@@ -1,0 +1,1 @@
+layout_0x0_min_tile.png 0 0 100 100 0
